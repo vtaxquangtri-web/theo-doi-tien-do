@@ -104,6 +104,11 @@
   @media (max-width:760px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid2{grid-template-columns:1fr}}
   @media (prefers-reduced-motion:reduce){.kpi{transition:none}.kpi:hover{transform:none}}
 </style>
+<style>
+  .grp-row td{background:var(--th);color:var(--th-text);font-weight:700;text-transform:uppercase;font-size:13.5px;letter-spacing:.02em}
+  .grp-row td .grp-meta{font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted);margin-left:8px}
+  .chip{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--gray-bg);color:var(--gray);margin-left:6px;vertical-align:1px}
+</style>
 </head>
 <body>
 <header>
@@ -117,7 +122,7 @@
       <a class="btn" href="#tong-hop">Tổng hợp</a>
       <a class="btn primary" href="#chi-tiet">Xem chi tiết</a>
       <button class="btn" id="btnReload" type="button">Tải lại dữ liệu</button>
-      <a class="btn" id="btnSheet" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/1sQTC2nRSgzYrnmOcS3_nc2cs8LOTDtmXruHzSIe9AC8/edit">Mở bảng Google Sheet</a>
+      <a class="btn" id="btnSheet" target="_blank" rel="noopener">Mở bảng Google Sheet</a>
     </nav>
   </div>
 </header>
@@ -132,6 +137,10 @@
       <h2>Cơ cấu tình hình thực hiện</h2>
       <div class="bar" id="bar"></div>
       <div class="legend" id="legend"></div>
+    </div>
+    <div class="panel">
+      <h2>Tình hình thực hiện theo nhóm nhiệm vụ</h2>
+      <div class="tbl-wrap"><table id="tblGroup"></table></div>
     </div>
     <div class="grid2">
       <div class="panel">
@@ -155,9 +164,10 @@
 
   <section id="viewDetail" hidden>
     <div class="panel">
-      <p class="sheet-title" id="dTitle"></p>
+      <p class="sheet-title">Bảng theo dõi chi tiết nhiệm vụ</p>
       <p class="sheet-period" id="dPeriod"></p>
       <div class="toolbar">
+        <select id="fGroup" aria-label="Lọc theo nhóm nhiệm vụ"><option value="">Tất cả nhóm nhiệm vụ</option></select>
         <select id="fStatus" aria-label="Lọc theo trạng thái">
           <option value="">Tất cả trạng thái</option>
           <option>Quá hạn</option>
@@ -178,13 +188,22 @@
 <footer class="wrap" id="footer"></footer>
 
 <script>
+/* ================== CẤU HÌNH ================== */
 const CONFIG = {
   SHEET_ID: "1sQTC2nRSgzYrnmOcS3_nc2cs8LOTDtmXruHzSIe9AC8",
-  SHEET_NAME: "Bảng theo dõi",   // tên trang tính (dùng cho nguồn dự phòng)
-  SHEET_GID: "",                 // số sau #gid= trên đường link trang tính, nếu cần chỉ định
-  SAP_DEN_HAN_NGAY: 2
+  /* Mỗi nhóm nhiệm vụ ứng với một trang tính.
+     sheet: tên trang tính (phải trùng tên tab trong Google Sheet).
+     gid  : số sau "#gid=" trên thanh địa chỉ khi bấm vào tab đó (nên điền để đọc ngày chính xác). */
+  GROUPS: [
+    { name: "Nhiệm vụ do Tỉnh giao",        sheet: "NV Tỉnh",     gid: "314632457" },
+    { name: "Nhiệm vụ do UBND xã giao",     sheet: "NV UBND Xã",  gid: "845425024" },
+    { name: "Nhiệm vụ do Đảng ủy xã giao",  sheet: "NV Đảng ủy",  gid: "239570416" }
+  ],
+  SAP_DEN_HAN_NGAY: 2   // còn từ 0 đến 2 ngày thì tính là "Sắp đến hạn"
 };
+const ROMAN = ["I","II","III","IV","V","VI","VII","VIII","IX","X"];
 
+/* ================== TIỆN ÍCH ================== */
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const norm = s => String(s ?? "").normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase();
@@ -212,7 +231,7 @@ function parseCSV(text){
   return rows;
 }
 
-/* Ngày trong bảng ghi lẫn ngày/tháng và tháng/ngày: khi không phân biệt được, chọn cách đọc hợp lý nhất. */
+/* Ngày trong bảng có thể ghi ngày/tháng hoặc tháng/ngày: khi không phân biệt được, chọn cách đọc hợp lý nhất. */
 function dateCandidates(raw){
   const s = String(raw ?? "").trim();
   if (!s) return [];
@@ -236,6 +255,7 @@ function parseDeadline(raw, issue){
   return pickNearest(c, today);
 }
 
+/* ================== ĐỌC BẢNG ================== */
 const COLS = {
   stt: h => h === "stt",
   so: h => h.includes("số ký hiệu"),
@@ -258,15 +278,15 @@ function extract(grid){
   for (const k in COLS) map[k] = header.findIndex(COLS[k]);
   const pre = grid.slice(0, hIdx).map(r => r.filter(c => String(c).trim()).join(" ").trim()).filter(Boolean);
   const get = (r, k) => map[k] >= 0 ? String(r[map[k]] ?? "").trim() : "";
-  const rows = []; let group = "";
+  const rows = []; let sub = "";
   for (const r of grid.slice(hIdx + 1)){
     const filled = r.map(c => String(c).trim()).filter(Boolean);
     if (!filled.length) continue;
-    if (!get(r,"so") && !get(r,"trich")){ if (filled.length === 1) group = filled[0]; continue; }
+    if (!get(r,"so") && !get(r,"trich")){ if (filled.length === 1) sub = filled[0]; continue; }
     rows.push({
       stt: get(r,"stt"), so: get(r,"so"), trich: get(r,"trich"), dvbh: get(r,"dvbh"),
       ngayRaw: get(r,"ngay"), khan: get(r,"khan"), hanRaw: get(r,"han"),
-      dvth: get(r,"dvth") || group || "Chưa phân công", kq: get(r,"kq"), ct: get(r,"ct"), ghichu: get(r,"ghichu")
+      dvth: get(r,"dvth") || sub || "Chưa phân công", kq: get(r,"kq"), ct: get(r,"ct"), ghichu: get(r,"ghichu")
     });
   }
   return { title: pre[0] || "", period: pre[1] || "", hasCt: map.ct >= 0, rows };
@@ -277,8 +297,7 @@ function classify(r){
   r.ngay = parseIssueDate(r.ngayRaw);
   r.han = parseDeadline(r.hanRaw, r.ngay);
   r.hanLoi = !!r.hanRaw && !r.han;
-  const doneMark = r.kq || r.ct;          // ưu tiên cột "Kết quả thực hiện", nếu trống thì xét cột chi tiết
-  if (!notDone(doneMark)) { r.status = "Đã hoàn thành"; r.days = null; return r; }
+  if (!notDone(r.kq)) { r.status = "Đã hoàn thành"; r.days = null; return r; }
   if (!r.han){ r.status = "Chưa xác định hạn"; r.days = null; return r; }
   r.days = Math.round((r.han - today) / DAY);
   r.status = r.days < 0 ? "Quá hạn" : (r.days <= CONFIG.SAP_DEN_HAN_NGAY ? "Sắp đến hạn" : "Trong hạn");
@@ -300,83 +319,110 @@ async function fetchCsv(url){
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error("HTTP " + res.status);
   const text = await res.text();
-  if (/^\s*<(!doctype|html)/i.test(text)) throw new Error("Bảng tính chưa được chia sẻ công khai");
+  if (/^\s*<(!doctype|html)/i.test(text)) throw new Error("bảng tính chưa được chia sẻ công khai");
   return text;
 }
-async function loadSheet(){
-  const id = CONFIG.SHEET_ID;
-  const sources = [
-    `https://docs.google.com/spreadsheets/d/${id}/export?format=csv${CONFIG.SHEET_GID ? "&gid=" + CONFIG.SHEET_GID : ""}`,
-    `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&headers=0${CONFIG.SHEET_NAME ? "&sheet=" + encodeURIComponent(CONFIG.SHEET_NAME) : ""}`
-  ];
-  let lastErr, fallback = null;
-  for (const u of sources){
-    try {
-      const csv = await fetchCsv(u);
-      const d = extract(parseCSV(csv));
-      if (!d || !d.rows.length) throw new Error("Không tìm thấy bảng dữ liệu");
-      if (d.rows.some(r => r.ngayRaw || r.hanRaw)) return { csv, at: new Date(), live: true };
-      if (!fallback) fallback = { csv, at: new Date(), live: true, datesLost: true };
-    } catch(e){ lastErr = e; }
+const hasHeader = r => (r || []).some(c => norm(c).includes("số ký hiệu"));
+async function loadGroup(g){
+  const base = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}`;
+  // 1) Có gid: tải bản xuất CSV, giữ đúng giá trị hiển thị trong ô
+  if (g.gid){
+    try { const d = extract(parseCSV(await fetchCsv(`${base}/export?format=csv&gid=${g.gid}`))); if (d) return d; } catch(_){}
   }
-  if (fallback) return fallback;
-  throw lastErr || new Error("Không đọc được bảng tính");
+  // 2) Đọc theo tên trang tính.
+  //    Lần 1 đọc cả trang để tìm dòng tiêu đề; lần 2 khai báo các dòng tiêu đề (headers=k)
+  //    để Google chỉ xét kiểu dữ liệu trên các dòng nhiệm vụ, không làm mất ô ngày.
+  const q = k => `${base}/gviz/tq?tqx=out:csv&headers=${k}&sheet=${encodeURIComponent(g.sheet)}`;
+  const grid = parseCSV(await fetchCsv(q(0)));
+  const hIdx = grid.findIndex(hasHeader);
+  if (hIdx < 0) throw new Error("không tìm thấy dòng tiêu đề “Số ký hiệu”");
+  const pre = grid.slice(0, hIdx), headerRow = grid[hIdx];
+  for (const k of [hIdx + 1, hIdx + 2, hIdx + 3, hIdx + 4]){
+    try {
+      const g2 = parseCSV(await fetchCsv(q(k)));
+      if (!hasHeader(g2[0])) continue;              // chưa bao trùm dòng tiêu đề → thử số dòng lớn hơn
+      const d = extract([...pre, headerRow, ...g2.slice(1)]);
+      if (d){ d.viaName = true; return d; }
+    } catch(_){}
+  }
+  const d = extract(grid); d.viaName = true; return d;
 }
 
-let DATA = null, SRC = null, LOAD_ERR = "";
+let DATA = null, ERRORS = [], LOADED_AT = null;
 
-function useSource(src){
-  const d = extract(parseCSV(src.csv));
-  if (!d || !d.rows.length) return false;
-  d.rows.forEach(classify);
-  DATA = d; SRC = src;
-  render();
-  return true;
+async function loadAll(){
+  const results = await Promise.allSettled(CONFIG.GROUPS.map(loadGroup));
+  const groups = [], rows = [], errors = [], datesLost = [];
+  results.forEach((res, i) => {
+    const g = CONFIG.GROUPS[i];
+    if (res.status === "rejected"){ errors.push(`${g.name} (trang tính “${g.sheet}”): ${res.reason?.message || "lỗi kết nối"}`); groups.push({ ...g, idx: i, ok: false, rows: [] }); return; }
+    const d = res.value;
+    d.rows.forEach(r => { r.group = g.name; r.gIdx = i; classify(r); rows.push(r); });
+    const hasDateData = d.rows.some(r => r.ngayRaw || r.hanRaw);
+    if (d.rows.length && !hasDateData && d.viaName) datesLost.push(g);
+    groups.push({ ...g, idx: i, ok: true, title: d.title, hasCt: d.hasCt, rows: d.rows });
+  });
+  return { groups, rows, errors, datesLost, hasCt: groups.some(g => g.hasCt) };
 }
 
 /* ================== HIỂN THỊ ================== */
 function renderNotices(){
   const n = [];
-  if (LOAD_ERR) n.push(`<div class="notice err"><span><b>Chưa đọc được dữ liệu từ Google Sheet</b> (${esc(LOAD_ERR)}). Đề nghị kiểm tra: bảng tính đã chia sẻ ở chế độ “Bất kỳ ai có đường liên kết đều có thể xem” và máy đang có kết nối Internet, sau đó bấm “Tải lại dữ liệu”.</span></div>`);
-  if (SRC && SRC.datesLost) n.push(`<div class="notice warn">Đã đọc được dữ liệu nhưng các cột “Ngày ban hành” và “Hạn xử lý” bị trống. Đề nghị định dạng lại hai cột này về cùng một kiểu, hoặc điền SHEET_GID trong phần cấu hình của tệp index.html.</div>`);
+  if (ERRORS.length) n.push(`<div class="notice err"><span><b>Chưa đọc được một số nhóm nhiệm vụ từ Google Sheet:</b><br>${ERRORS.map(esc).join("<br>")}<br>Đề nghị kiểm tra: bảng tính đã chia sẻ ở chế độ “Bất kỳ ai có đường liên kết đều có thể xem”, tên trang tính trong phần cấu hình trùng với tên tab, máy đang có kết nối Internet.</span></div>`);
+  if (DATA && DATA.datesLost.length) n.push(`<div class="notice warn">Các cột ngày của ${DATA.datesLost.map(g => `<b>${esc(g.name)}</b>`).join(", ")} bị trống khi đọc. Đề nghị điền mã <b>gid</b> của trang tính tương ứng trong phần cấu hình tệp index.html.</div>`);
   const bad = DATA ? DATA.rows.filter(r => r.hanLoi) : [];
   if (bad.length) n.push(`<div class="notice warn">Có ${bad.length} nhiệm vụ ghi hạn xử lý không đọc được ngày cụ thể, đang xếp vào nhóm “Chưa xác định hạn”: ${bad.map(r => `<b>${esc(r.so)}</b> (“${esc(r.hanRaw)}”)`).join("; ")}.</div>`);
   $("notices").innerHTML = n.join("");
 }
 
+function fillSelect(id, values, label){
+  const cur = $(id).value;
+  $(id).innerHTML = `<option value="">${label}</option>` + values.map(v => `<option${v === cur ? " selected" : ""}>${esc(v)}</option>`).join("");
+}
+
 function render(){
-  const units = [...new Set(DATA.rows.map(r => r.dvth))].sort((a,b) => a.localeCompare(b, "vi"));
-  const cur = $("fUnit").value;
-  $("fUnit").innerHTML = `<option value="">Tất cả đơn vị thực hiện</option>` + units.map(u => `<option${u === cur ? " selected" : ""}>${esc(u)}</option>`).join("");
-  $("subline").textContent = `${DATA.period || DATA.title} · Số liệu tính đến ngày ${fmt(today)}` + ` · Cập nhật lúc ${fmtTime(SRC.at)}`;
+  fillSelect("fGroup", CONFIG.GROUPS.map(g => g.name), "Tất cả nhóm nhiệm vụ");
+  fillSelect("fUnit", [...new Set(DATA.rows.map(r => r.dvth))].sort((a,b) => a.localeCompare(b, "vi")), "Tất cả đơn vị thực hiện");
+  $("subline").textContent = `Số liệu tính đến ngày ${fmt(today)} · Cập nhật lúc ${fmtTime(LOADED_AT)}`;
+  $("dPeriod").textContent = `Số liệu tính đến ngày ${fmt(today)}`;
   $("footer").textContent = `Trạng thái được tính tự động theo cột “Hạn xử lý” và cột “Kết quả thực hiện”. “Sắp đến hạn”: còn từ 0 đến ${CONFIG.SAP_DEN_HAN_NGAY} ngày.`;
   renderSummary(); renderNotices();
   $("loading").hidden = true;
   route(false);
 }
 
+const countBy = rs => { const c = s => rs.filter(r => r.status === s).length; return { t: rs.length, d: c("Đã hoàn thành"), o: c("Quá hạn"), s: c("Sắp đến hạn"), k: c("Trong hạn"), x: c("Chưa xác định hạn") }; };
+const z = (v, cls) => v ? `<span class="${cls}">${v}</span>` : "0";
+const rate = x => x.t ? (Math.round(x.d*1000/x.t)/10) + "%" : "—";
+const statHead = first => `<thead><tr><th>${first}</th><th>Tổng số</th><th>Đã hoàn thành</th><th>Quá hạn</th><th>Sắp đến hạn</th><th>Trong hạn</th><th>Chưa xác định hạn</th><th>Tỷ lệ hoàn thành</th></tr></thead>`;
+const statCells = x => `<td class="c">${x.t}</td><td class="c">${z(x.d,"num-done")}</td><td class="c">${z(x.o,"num-over")}</td><td class="c">${z(x.s,"num-soon")}</td><td class="c">${x.k}</td><td class="c">${x.x}</td><td class="c">${rate(x)}</td>`;
+
 function renderSummary(){
-  const rows = DATA.rows, n = rows.length;
-  const cnt = s => rows.filter(r => r.status === s).length;
-  const done = cnt("Đã hoàn thành"), over = cnt("Quá hạn"), soon = cnt("Sắp đến hạn"), ok = cnt("Trong hạn"), nodl = cnt("Chưa xác định hạn");
+  const rows = DATA.rows, n = rows.length, all = countBy(rows);
   const pct = v => n ? Math.round(v * 1000 / n) / 10 : 0;
 
   $("kpis").innerHTML = [
-    ["total","Tổng số nhiệm vụ", n, "Toàn bộ nhiệm vụ trong bảng", ""],
-    ["done","Đã hoàn thành", done, `Tỷ lệ hoàn thành ${pct(done)}%`, "Đã hoàn thành"],
-    ["over","Quá hạn", over, "Chưa có kết quả, đã qua hạn xử lý", "Quá hạn"],
-    ["soon","Sắp đến hạn", soon, `Còn từ 0 đến ${CONFIG.SAP_DEN_HAN_NGAY} ngày`, "Sắp đến hạn"],
-    ["ok","Trong hạn", ok, `Còn trên ${CONFIG.SAP_DEN_HAN_NGAY} ngày`, "Trong hạn"],
-    ["nodl","Chưa xác định hạn", nodl, "Không ghi hạn xử lý cụ thể", "Chưa xác định hạn"]
+    ["total","Tổng số nhiệm vụ", n, `Gồm ${CONFIG.GROUPS.length} nhóm nhiệm vụ`, ""],
+    ["done","Đã hoàn thành", all.d, `Tỷ lệ hoàn thành ${pct(all.d)}%`, "Đã hoàn thành"],
+    ["over","Quá hạn", all.o, "Chưa hoàn thành, đã qua hạn xử lý", "Quá hạn"],
+    ["soon","Sắp đến hạn", all.s, `Còn từ 0 đến ${CONFIG.SAP_DEN_HAN_NGAY} ngày`, "Sắp đến hạn"],
+    ["ok","Trong hạn", all.k, `Còn trên ${CONFIG.SAP_DEN_HAN_NGAY} ngày`, "Trong hạn"],
+    ["nodl","Chưa xác định hạn", all.x, "Không ghi hạn xử lý cụ thể", "Chưa xác định hạn"]
   ].map(([c,l,v,note,f]) => `<button type="button" class="kpi ${c}" data-f="${esc(f)}"><div class="lb">${l}</div><div class="val">${v}</div><div class="note">${note}</div></button>`).join("");
-  document.querySelectorAll(".kpi").forEach(el => el.onclick = () => openDetail(el.dataset.f));
+  document.querySelectorAll(".kpi").forEach(el => el.onclick = () => openDetail({ status: el.dataset.f }));
 
-  const parts = [["Đã hoàn thành",done],["Quá hạn",over],["Sắp đến hạn",soon],["Trong hạn",ok],["Chưa xác định hạn",nodl]];
+  const parts = [["Đã hoàn thành",all.d],["Quá hạn",all.o],["Sắp đến hạn",all.s],["Trong hạn",all.k],["Chưa xác định hạn",all.x]];
   $("bar").innerHTML = parts.filter(p => p[1]).map(([s,v]) => `<span title="${s}: ${v}" style="width:${v*100/n}%;background:${STATUS[s].color}"></span>`).join("");
   $("legend").innerHTML = parts.map(([s,v]) => `<span><i style="background:${STATUS[s].color}"></i>${s}: <b>${v}</b> (${pct(v)}%)</span>`).join("");
 
+  // Theo nhóm nhiệm vụ
+  $("tblGroup").innerHTML = statHead("Nhóm nhiệm vụ") + `<tbody>${
+    DATA.groups.map((g, i) => `<tr><td><a href="#chi-tiet" data-g="${esc(g.name)}">${ROMAN[i]}. ${esc(g.name)}</a>${g.ok ? "" : ' <span class="chip">chưa đọc được</span>'}</td>${statCells(countBy(g.rows))}</tr>`).join("")
+  }<tr><td><b>Tổng cộng</b></td>${statCells(all).replace(/<td class="c">/g,'<td class="c" style="font-weight:700">')}</tr></tbody>`;
+  $("tblGroup").querySelectorAll("a[data-g]").forEach(a => a.onclick = e => { e.preventDefault(); openDetail({ group: a.dataset.g }); });
+
   const item = (r, cls, tag) => `<div class="item"><div class="tag ${cls}">${tag}</div><div>
-      <div class="so">${esc(r.so)}</div><div class="ty">${esc(r.trich)}</div>
+      <div class="so">${esc(r.so)}<span class="chip">${esc(r.group)}</span></div><div class="ty">${esc(r.trich)}</div>
       <div class="meta">Đơn vị thực hiện: <b>${esc(r.dvth)}</b> · Đơn vị ban hành: ${esc(r.dvbh || "—")} · Hạn xử lý: <b>${fmt(r.han) || esc(r.hanRaw)}</b>${r.khan && norm(r.khan) !== "thường" ? ` · Độ khẩn: <b style="color:var(--red)">${esc(r.khan)}</b>` : ""}</div>
     </div></div>`;
 
@@ -390,43 +436,44 @@ function renderSummary(){
 
   const doneL = rows.filter(r => r.status === "Đã hoàn thành");
   $("cDone").textContent = doneL.length;
-  $("listDone").innerHTML = doneL.length ? `<div class="tbl-wrap"><table><thead><tr><th>Số ký hiệu</th><th>Trích yếu</th><th>Đơn vị thực hiện</th><th>Hạn xử lý</th><th>Kết quả thực hiện</th></tr></thead><tbody>${
-      doneL.map(r => `<tr><td>${esc(r.so)}</td><td>${esc(r.trich)}</td><td>${esc(r.dvth)}</td><td class="c">${fmt(r.han) || esc(r.hanRaw)}</td><td>${esc(r.ct || r.kq)}</td></tr>`).join("")
+  $("listDone").innerHTML = doneL.length ? `<div class="tbl-wrap"><table><thead><tr><th>Nhóm nhiệm vụ</th><th>Số ký hiệu</th><th>Trích yếu</th><th>Đơn vị thực hiện</th><th>Hạn xử lý</th><th>Chi tiết kết quả thực hiện</th></tr></thead><tbody>${
+      doneL.map(r => `<tr><td>${esc(r.group)}</td><td>${esc(r.so)}</td><td>${esc(r.trich)}</td><td>${esc(r.dvth)}</td><td class="c">${fmt(r.han) || esc(r.hanRaw)}</td><td>${esc(r.ct)}</td></tr>`).join("")
     }</tbody></table></div>` : `<div class="empty">Chưa có nhiệm vụ hoàn thành.</div>`;
 
+  // Theo đơn vị
   const units = [...new Set(rows.map(r => r.dvth))];
-  const uRows = units.map(u => {
-    const rs = rows.filter(r => r.dvth === u), c = s => rs.filter(r => r.status === s).length;
-    return { u, t: rs.length, d: c("Đã hoàn thành"), o: c("Quá hạn"), s: c("Sắp đến hạn"), k: c("Trong hạn"), x: c("Chưa xác định hạn") };
-  }).sort((a,b) => b.o - a.o || b.s - a.s || b.t - a.t);
-  const z = (v, cls) => v ? `<span class="${cls}">${v}</span>` : "0";
-  $("tblUnit").innerHTML = `<thead><tr><th>Đơn vị thực hiện</th><th>Tổng số</th><th>Đã hoàn thành</th><th>Quá hạn</th><th>Sắp đến hạn</th><th>Trong hạn</th><th>Chưa xác định hạn</th><th>Tỷ lệ hoàn thành</th></tr></thead><tbody>${
-    uRows.map(x => `<tr><td><a href="#chi-tiet" data-u="${esc(x.u)}">${esc(x.u)}</a></td><td class="c">${x.t}</td><td class="c">${z(x.d,"num-done")}</td><td class="c">${z(x.o,"num-over")}</td><td class="c">${z(x.s,"num-soon")}</td><td class="c">${x.k}</td><td class="c">${x.x}</td><td class="c">${Math.round(x.d*1000/x.t)/10}%</td></tr>`).join("")
+  const uRows = units.map(u => ({ u, ...countBy(rows.filter(r => r.dvth === u)) })).sort((a,b) => b.o - a.o || b.s - a.s || b.t - a.t);
+  $("tblUnit").innerHTML = statHead("Đơn vị thực hiện") + `<tbody>${
+    uRows.map(x => `<tr><td><a href="#chi-tiet" data-u="${esc(x.u)}">${esc(x.u)}</a></td>${statCells(x)}</tr>`).join("") || `<tr><td colspan="8" class="c empty">Chưa có dữ liệu.</td></tr>`
   }</tbody>`;
-  $("tblUnit").querySelectorAll("a[data-u]").forEach(a => a.onclick = e => { e.preventDefault(); openDetail("", a.dataset.u); });
+  $("tblUnit").querySelectorAll("a[data-u]").forEach(a => a.onclick = e => { e.preventDefault(); openDetail({ unit: a.dataset.u }); });
 }
 
 function renderDetail(){
-  $("dTitle").textContent = DATA.title;
-  $("dPeriod").textContent = DATA.period;
-  const fS = $("fStatus").value, fU = $("fUnit").value, q = norm($("fSearch").value);
-  const list = DATA.rows.filter(r =>
-    (!fS || r.status === fS) && (!fU || r.dvth === fU) &&
-    (!q || norm([r.so, r.trich, r.dvbh, r.dvth, r.kq, r.ct, r.ghichu].join(" ")).includes(q)));
-  const ct = DATA.hasCt;
-  $("tblDetail").innerHTML = `<thead><tr><th>STT</th><th>Số ký hiệu</th><th>Trích yếu</th><th>Đơn vị ban hành</th><th>Ngày ban hành</th><th>Độ khẩn</th><th>Hạn xử lý</th><th>Đơn vị thực hiện</th><th>Kết quả thực hiện</th>${ct ? "<th>Chi tiết kết quả thực hiện</th>" : ""}<th>Ghi chú</th><th>Trạng thái</th></tr></thead><tbody>${
-    list.map(r => `<tr>
+  const fG = $("fGroup").value, fS = $("fStatus").value, fU = $("fUnit").value, q = norm($("fSearch").value);
+  const ct = DATA.hasCt, cols = ct ? 12 : 11;
+  const match = r => (!fS || r.status === fS) && (!fU || r.dvth === fU) &&
+    (!q || norm([r.so, r.trich, r.dvbh, r.dvth, r.kq, r.ct, r.ghichu].join(" ")).includes(q));
+  let shown = 0, body = "";
+  DATA.groups.forEach((g, i) => {
+    if (fG && g.name !== fG) return;
+    const list = g.rows.filter(match);
+    shown += list.length;
+    const c = countBy(g.rows);
+    body += `<tr class="grp-row"><td colspan="${cols}">${ROMAN[i]}. ${esc(g.name)}<span class="grp-meta">${g.ok ? `${c.t} nhiệm vụ · hoàn thành ${c.d} · quá hạn ${c.o} · sắp đến hạn ${c.s}` : "chưa đọc được dữ liệu"}${list.length !== g.rows.length ? ` · đang hiển thị ${list.length}` : ""}</span></td></tr>`;
+    body += list.map(r => `<tr>
       <td class="c">${esc(r.stt)}</td><td>${esc(r.so)}</td><td>${esc(r.trich)}</td><td>${esc(r.dvbh)}</td>
       <td class="c">${fmt(r.ngay) || esc(r.ngayRaw)}</td><td class="c">${esc(r.khan)}</td>
       <td class="c">${fmt(r.han) || esc(r.hanRaw)}${r.status === "Quá hạn" ? `<br><small class="num-over">quá ${-r.days} ngày</small>` : r.status === "Sắp đến hạn" ? `<br><small class="num-soon">${r.days === 0 ? "hết hạn hôm nay" : "còn " + r.days + " ngày"}</small>` : ""}</td>
       <td>${esc(r.dvth)}</td><td>${esc(r.kq)}</td>${ct ? `<td>${esc(r.ct)}</td>` : ""}<td>${esc(r.ghichu)}</td><td class="c">${badge(r.status)}</td>
-    </tr>`).join("") || `<tr><td colspan="${ct ? 12 : 11}" class="c empty">Không có nhiệm vụ phù hợp điều kiện lọc.</td></tr>`
-  }</tbody>`;
-  $("dCount").textContent = `Hiển thị ${list.length}/${DATA.rows.length} nhiệm vụ.`;
+    </tr>`).join("") || `<tr><td colspan="${cols}" class="c empty">Không có nhiệm vụ phù hợp điều kiện lọc.</td></tr>`;
+  });
+  $("tblDetail").innerHTML = `<thead><tr><th>STT</th><th>Số ký hiệu</th><th>Trích yếu</th><th>Đơn vị ban hành</th><th>Ngày ban hành</th><th>Độ khẩn</th><th>Hạn xử lý</th><th>Đơn vị thực hiện</th><th>Kết quả thực hiện</th>${ct ? "<th>Chi tiết kết quả thực hiện</th>" : ""}<th>Ghi chú</th><th>Trạng thái</th></tr></thead><tbody>${body}</tbody>`;
+  $("dCount").textContent = `Hiển thị ${shown}/${DATA.rows.length} nhiệm vụ.`;
 }
 
-function openDetail(status = "", unit = ""){
-  $("fStatus").value = status; $("fUnit").value = unit; $("fSearch").value = "";
+function openDetail({ group = "", status = "", unit = "" } = {}){
+  $("fGroup").value = group; $("fStatus").value = status; $("fUnit").value = unit; $("fSearch").value = "";
   if (location.hash === "#chi-tiet") renderDetail(); else location.hash = "chi-tiet";
 }
 function route(scroll = true){
@@ -440,13 +487,16 @@ function route(scroll = true){
 
 async function init(){
   $("btnReload").disabled = true;
-  try { LOAD_ERR = ""; useSource(await loadSheet()); }
-  catch(e){ LOAD_ERR = e.message || "lỗi kết nối"; if (!DATA) $("loading").hidden = true; renderNotices(); }
+  const d = await loadAll();
+  ERRORS = d.errors;
+  if (d.groups.some(g => g.ok)){ DATA = d; LOADED_AT = new Date(); render(); }
+  else { $("loading").hidden = true; renderNotices(); }
   $("btnReload").disabled = false;
 }
 
+$("btnSheet").href = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/edit`;
 $("btnReload").onclick = init;
-["fStatus","fUnit"].forEach(id => $(id).onchange = renderDetail);
+["fGroup","fStatus","fUnit"].forEach(id => $(id).onchange = renderDetail);
 $("fSearch").oninput = renderDetail;
 window.addEventListener("hashchange", () => route(true));
 init();
