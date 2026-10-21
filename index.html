@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Theo dõi tiến độ công việc UBND xã Bến Hải</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
+<style>
+  /* Bố cục: dải tiêu đề màu chủ đạo → ô số liệu → hai cột quá hạn / sắp đến hạn → bảng theo đơn vị → đã hoàn thành */
+  :root{
+    --bg:#f2f4f8; --card:#ffffff; --text:#1b2333; --muted:#5d6879; --line:#dfe4ee; --th:#eaf0fa; --th-text:#123a6b; --zebra:#f9fafc;
+    --brand:#0b4ea2; --brand-dark:#083a7a; --on-brand:#ffffff;
+    --red:#c0392b; --red-bg:#fbeaea;
+    --amber:#a85f00; --amber-bg:#fff2dc;
+    --green:#1b7a3a; --green-bg:#e6f4ea;
+    --blue:#1f5fbf; --blue-bg:#e6eefb;
+    --gray:#5d6879; --gray-bg:#edf0f4; --gray-bar:#a3adbb;
+    --font:"Be Vietnam Pro","Segoe UI",Roboto,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --bg:#11161f; --card:#1a212d; --text:#e6eaf2; --muted:#9aa5b6; --line:#2c3545; --th:#212b3b; --th-text:#cfdcf2; --zebra:#1d2531;
+    --brand:#1b5fb8; --brand-dark:#0f3f80; --on-brand:#ffffff;
+    --red:#f08378; --red-bg:#3a1f1f; --amber:#f0b45c; --amber-bg:#3a2c16;
+    --green:#6fcf8f; --green-bg:#17301f; --blue:#8bb4f5; --blue-bg:#1a2a45;
+    --gray:#a9b3c2; --gray-bg:#262e3b; --gray-bar:#6b7585; color-scheme:dark } }
+  :root[data-theme="dark"]{
+    --bg:#11161f; --card:#1a212d; --text:#e6eaf2; --muted:#9aa5b6; --line:#2c3545; --th:#212b3b; --th-text:#cfdcf2; --zebra:#1d2531;
+    --brand:#1b5fb8; --brand-dark:#0f3f80; --on-brand:#ffffff;
+    --red:#f08378; --red-bg:#3a1f1f; --amber:#f0b45c; --amber-bg:#3a2c16;
+    --green:#6fcf8f; --green-bg:#17301f; --blue:#8bb4f5; --blue-bg:#1a2a45;
+    --gray:#a9b3c2; --gray-bg:#262e3b; --gray-bar:#6b7585; color-scheme:dark }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.5}
+  a{color:var(--brand)}
+  .wrap{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  header{background:linear-gradient(135deg,var(--brand),var(--brand-dark));color:var(--on-brand)}
+  header .wrap{padding-block:18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+  .org{font-size:12.5px;letter-spacing:.08em;opacity:.85;text-transform:uppercase;font-weight:600}
+  h1{margin:2px 0 4px;font-size:clamp(19px,3vw,24px);text-wrap:balance}
+  .sub{font-size:13px;opacity:.92}
+  .actions{display:flex;flex-wrap:wrap;gap:8px}
+  .btn{font-family:inherit;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);color:var(--on-brand);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:14px;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+  .btn:hover{background:rgba(255,255,255,.24)}
+  .btn:focus-visible,.kpi:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+  .btn.primary{background:var(--on-brand);color:#0b4ea2;border-color:var(--on-brand);font-weight:600}
+  .btn.light{border-color:var(--line);background:var(--card);color:var(--brand)}
+  main.wrap{padding-block:20px 40px}
+  .notice{padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .notice.info{background:var(--blue-bg);color:var(--text);border:1px solid var(--line)}
+  .notice.warn{background:var(--amber-bg);color:var(--text);border:1px solid var(--line)}
+  .notice.err{background:var(--red-bg);color:var(--text);border:1px solid var(--line)}
+  .kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:16px}
+  .kpi{background:var(--card);border-radius:12px;padding:14px 16px;border:1px solid var(--line);border-top:4px solid var(--gray);cursor:pointer;text-align:left;font-family:inherit;color:var(--text);transition:transform .1s,box-shadow .1s}
+  .kpi:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.08)}
+  .kpi .lb{font-size:13px;color:var(--muted);font-weight:600}
+  .kpi .val{font-size:32px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+  .kpi .note{font-size:12px;color:var(--muted)}
+  .kpi.total{border-top-color:var(--brand)} .kpi.total .val{color:var(--brand)}
+  .kpi.done{border-top-color:var(--green)} .kpi.done .val{color:var(--green)}
+  .kpi.over{border-top-color:var(--red)} .kpi.over .val{color:var(--red)}
+  .kpi.soon{border-top-color:var(--amber)} .kpi.soon .val{color:var(--amber)}
+  .kpi.ok{border-top-color:var(--blue)} .kpi.ok .val{color:var(--blue)}
+  .kpi.nodl .val{color:var(--gray)}
+  .bar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--gray-bg);margin:4px 0 8px}
+  .bar span{display:block;height:100%}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--muted)}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px;min-width:0}
+  .panel h2{font-size:16.5px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .panel h2 .count{font-size:13px;padding:2px 9px;border-radius:999px}
+  .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+  .item{display:flex;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+  .item:first-child{border-top:0}
+  .item .tag{flex:0 0 auto;min-width:96px;text-align:center;font-weight:700;font-size:13px;padding:6px 8px;border-radius:8px;align-self:flex-start}
+  .item>div:last-child{min-width:0}
+  .item .so{font-weight:600;font-size:14px}
+  .item .ty{font-size:14px}
+  .item .meta{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .empty{color:var(--muted);font-size:14px;font-style:italic;padding:6px 0}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 9px;vertical-align:top;text-align:left}
+  th{background:var(--th);color:var(--th-text);font-weight:700;position:sticky;top:0;z-index:1}
+  td.c{text-align:center;font-variant-numeric:tabular-nums}
+  tbody tr:nth-child(even){background:var(--zebra)}
+  .badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap}
+  .s-over{background:var(--red-bg);color:var(--red)}
+  .s-soon{background:var(--amber-bg);color:var(--amber)}
+  .s-ok{background:var(--blue-bg);color:var(--blue)}
+  .s-done{background:var(--green-bg);color:var(--green)}
+  .s-nodl{background:var(--gray-bg);color:var(--gray)}
+  .num-over{color:var(--red);font-weight:700}
+  .num-soon{color:var(--amber);font-weight:700}
+  .num-done{color:var(--green);font-weight:700}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+  .toolbar select,.toolbar input{font-family:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--card);color:var(--text);max-width:100%}
+  .toolbar input{min-width:0;flex:1 1 220px}
+  .tbl-wrap{overflow:auto;max-height:72vh;border-radius:8px}
+  .sheet-title{text-align:center;margin:0 0 4px;font-size:16.5px;font-weight:700;text-transform:uppercase;text-wrap:balance}
+  .sheet-period{text-align:center;margin:0 0 14px;font-style:italic;color:var(--muted)}
+  .loading{padding:60px 0;text-align:center;color:var(--muted)}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding-block:10px}
+  @media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media (max-width:760px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid2{grid-template-columns:1fr}}
+  @media (prefers-reduced-motion:reduce){.kpi{transition:none}.kpi:hover{transform:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div>
+      <div class="org">Ủy ban nhân dân xã Bến Hải</div>
+      <h1>Theo dõi tiến độ công việc UBND xã Bến Hải</h1>
+      <div class="sub" id="subline">Đang tải dữ liệu...</div>
+    </div>
+    <nav class="actions">
+      <a class="btn" href="#tong-hop">Tổng hợp</a>
+      <a class="btn primary" href="#chi-tiet">Xem chi tiết</a>
+      <button class="btn" id="btnReload" type="button">Tải lại dữ liệu</button>
+      <a class="btn" id="btnSheet" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/1sQTC2nRSgzYrnmOcS3_nc2cs8LOTDtmXruHzSIe9AC8/edit">Mở bảng Google Sheet</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="notices"></div>
+  <div id="loading" class="loading">Đang tải dữ liệu từ bảng theo dõi...</div>
+
+  <section id="viewSummary" hidden>
+    <div class="kpis" id="kpis"></div>
+    <div class="panel">
+      <h2>Cơ cấu tình hình thực hiện</h2>
+      <div class="bar" id="bar"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="grid2">
+      <div class="panel">
+        <h2>Nhiệm vụ quá hạn <span class="count s-over" id="cOver"></span></h2>
+        <div id="listOver"></div>
+      </div>
+      <div class="panel">
+        <h2>Nhiệm vụ sắp đến hạn <span class="count s-soon" id="cSoon"></span></h2>
+        <div id="listSoon"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Tình hình thực hiện theo đơn vị</h2>
+      <div class="tbl-wrap"><table id="tblUnit"></table></div>
+    </div>
+    <div class="panel">
+      <h2>Nhiệm vụ đã hoàn thành <span class="count s-done" id="cDone"></span></h2>
+      <div id="listDone"></div>
+    </div>
+  </section>
+
+  <section id="viewDetail" hidden>
+    <div class="panel">
+      <p class="sheet-title" id="dTitle"></p>
+      <p class="sheet-period" id="dPeriod"></p>
+      <div class="toolbar">
+        <select id="fStatus" aria-label="Lọc theo trạng thái">
+          <option value="">Tất cả trạng thái</option>
+          <option>Quá hạn</option>
+          <option>Sắp đến hạn</option>
+          <option>Trong hạn</option>
+          <option>Đã hoàn thành</option>
+          <option>Chưa xác định hạn</option>
+        </select>
+        <select id="fUnit" aria-label="Lọc theo đơn vị"><option value="">Tất cả đơn vị thực hiện</option></select>
+        <input id="fSearch" type="search" placeholder="Tìm theo số ký hiệu, trích yếu, đơn vị..." aria-label="Tìm kiếm">
+        <a class="btn light" href="#tong-hop">← Về trang tổng hợp</a>
+      </div>
+      <div class="tbl-wrap"><table id="tblDetail"></table></div>
+      <div style="color:var(--muted);margin-top:8px;font-size:13px" id="dCount"></div>
+    </div>
+  </section>
+</main>
+<footer class="wrap" id="footer"></footer>
+
+<script>
+const CONFIG = {
+  SHEET_ID: "1sQTC2nRSgzYrnmOcS3_nc2cs8LOTDtmXruHzSIe9AC8",
+  SHEET_NAME: "Bảng theo dõi",   // tên trang tính (dùng cho nguồn dự phòng)
+  SHEET_GID: "",                 // số sau #gid= trên đường link trang tính, nếu cần chỉ định
+  SAP_DEN_HAN_NGAY: 2
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const norm = s => String(s ?? "").normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase();
+const DAY = 86400000;
+const today = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
+const fmt = d => d ? `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}` : "";
+const fmtTime = d => `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")} ngày ${fmt(d)}`;
+
+function parseCSV(text){
+  const rows = []; let row = [], cell = "", q = false;
+  text = text.replace(/^﻿/, "");
+  for (let i = 0; i < text.length; i++){
+    const c = text[i];
+    if (q){
+      if (c === '"'){ if (text[i+1] === '"'){ cell += '"'; i++; } else q = false; }
+      else cell += c;
+    } else if (c === '"') q = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r"){
+      if (c === "\r" && text[i+1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += c;
+  }
+  if (cell !== "" || row.length){ row.push(cell); rows.push(row); }
+  return rows;
+}
+
+/* Ngày trong bảng ghi lẫn ngày/tháng và tháng/ngày: khi không phân biệt được, chọn cách đọc hợp lý nhất. */
+function dateCandidates(raw){
+  const s = String(raw ?? "").trim();
+  if (!s) return [];
+  if (/^\d{5}(\.\d+)?$/.test(s)){ const n = Math.floor(+s); if (n > 40000 && n < 60000){ const t = new Date(1899, 11, 30); t.setDate(t.getDate() + n); return [t]; } }
+  let m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return [new Date(+m[1], +m[2]-1, +m[3])];
+  m = s.match(/(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{4})/);
+  if (!m) return [];
+  const a = +m[1], b = +m[2], y = +m[3], out = [];
+  const mk = (d, mo) => { if (mo>=1 && mo<=12 && d>=1 && d<=31){ const t = new Date(y, mo-1, d); if (t.getMonth() === mo-1) out.push(t); } };
+  mk(a, b); if (a !== b) mk(b, a);
+  return out;
+}
+const pickNearest = (c, ref) => c.slice().sort((x,y) => Math.abs(x-ref) - Math.abs(y-ref))[0] || null;
+const parseIssueDate = raw => pickNearest(dateCandidates(raw), today);
+function parseDeadline(raw, issue){
+  const c = dateCandidates(raw);
+  if (!c.length) return null;
+  if (c.length === 1) return c[0];
+  if (issue){ const after = c.filter(d => d >= issue); if (after.length) return pickNearest(after, issue); }
+  return pickNearest(c, today);
+}
+
+const COLS = {
+  stt: h => h === "stt",
+  so: h => h.includes("số ký hiệu"),
+  trich: h => h.includes("trích yếu"),
+  dvbh: h => h.includes("đơn vị ban hành"),
+  ngay: h => h.includes("ngày ban hành"),
+  khan: h => h.includes("độ khẩn"),
+  han: h => h.includes("hạn xử lý"),
+  dvth: h => h.includes("đơn vị thực hiện"),
+  kq: h => /(kết|kế) quả/.test(h) && !h.includes("chi tiết"),
+  ct: h => h.includes("chi tiết"),
+  ghichu: h => h.includes("ghi chú")
+};
+
+function extract(grid){
+  const hIdx = grid.findIndex(r => r.some(c => norm(c).includes("số ký hiệu")));
+  if (hIdx < 0) return null;
+  const header = grid[hIdx].map(norm);
+  const map = {};
+  for (const k in COLS) map[k] = header.findIndex(COLS[k]);
+  const pre = grid.slice(0, hIdx).map(r => r.filter(c => String(c).trim()).join(" ").trim()).filter(Boolean);
+  const get = (r, k) => map[k] >= 0 ? String(r[map[k]] ?? "").trim() : "";
+  const rows = []; let group = "";
+  for (const r of grid.slice(hIdx + 1)){
+    const filled = r.map(c => String(c).trim()).filter(Boolean);
+    if (!filled.length) continue;
+    if (!get(r,"so") && !get(r,"trich")){ if (filled.length === 1) group = filled[0]; continue; }
+    rows.push({
+      stt: get(r,"stt"), so: get(r,"so"), trich: get(r,"trich"), dvbh: get(r,"dvbh"),
+      ngayRaw: get(r,"ngay"), khan: get(r,"khan"), hanRaw: get(r,"han"),
+      dvth: get(r,"dvth") || group || "Chưa phân công", kq: get(r,"kq"), ct: get(r,"ct"), ghichu: get(r,"ghichu")
+    });
+  }
+  return { title: pre[0] || "", period: pre[1] || "", hasCt: map.ct >= 0, rows };
+}
+
+const notDone = k => !k || /^(chưa|đang|không có thời hạn)/.test(norm(k));
+function classify(r){
+  r.ngay = parseIssueDate(r.ngayRaw);
+  r.han = parseDeadline(r.hanRaw, r.ngay);
+  r.hanLoi = !!r.hanRaw && !r.han;
+  const doneMark = r.kq || r.ct;          // ưu tiên cột "Kết quả thực hiện", nếu trống thì xét cột chi tiết
+  if (!notDone(doneMark)) { r.status = "Đã hoàn thành"; r.days = null; return r; }
+  if (!r.han){ r.status = "Chưa xác định hạn"; r.days = null; return r; }
+  r.days = Math.round((r.han - today) / DAY);
+  r.status = r.days < 0 ? "Quá hạn" : (r.days <= CONFIG.SAP_DEN_HAN_NGAY ? "Sắp đến hạn" : "Trong hạn");
+  return r;
+}
+const STATUS = {
+  "Quá hạn": { cls:"s-over", color:"var(--red)" },
+  "Sắp đến hạn": { cls:"s-soon", color:"var(--amber)" },
+  "Trong hạn": { cls:"s-ok", color:"var(--blue)" },
+  "Đã hoàn thành": { cls:"s-done", color:"var(--green)" },
+  "Chưa xác định hạn": { cls:"s-nodl", color:"var(--gray-bar)" }
+};
+const badge = s => `<span class="badge ${STATUS[s].cls}">${esc(s)}</span>`;
+
+/* ================== NGUỒN DỮ LIỆU ================== */
+/* Đọc trực tiếp Google Sheet mỗi lần mở trang.
+   Yêu cầu: bảng tính chia sẻ ở chế độ "Bất kỳ ai có đường liên kết đều có thể xem". */
+async function fetchCsv(url){
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const text = await res.text();
+  if (/^\s*<(!doctype|html)/i.test(text)) throw new Error("Bảng tính chưa được chia sẻ công khai");
+  return text;
+}
+async function loadSheet(){
+  const id = CONFIG.SHEET_ID;
+  const sources = [
+    `https://docs.google.com/spreadsheets/d/${id}/export?format=csv${CONFIG.SHEET_GID ? "&gid=" + CONFIG.SHEET_GID : ""}`,
+    `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&headers=0${CONFIG.SHEET_NAME ? "&sheet=" + encodeURIComponent(CONFIG.SHEET_NAME) : ""}`
+  ];
+  let lastErr, fallback = null;
+  for (const u of sources){
+    try {
+      const csv = await fetchCsv(u);
+      const d = extract(parseCSV(csv));
+      if (!d || !d.rows.length) throw new Error("Không tìm thấy bảng dữ liệu");
+      if (d.rows.some(r => r.ngayRaw || r.hanRaw)) return { csv, at: new Date(), live: true };
+      if (!fallback) fallback = { csv, at: new Date(), live: true, datesLost: true };
+    } catch(e){ lastErr = e; }
+  }
+  if (fallback) return fallback;
+  throw lastErr || new Error("Không đọc được bảng tính");
+}
+
+let DATA = null, SRC = null, LOAD_ERR = "";
+
+function useSource(src){
+  const d = extract(parseCSV(src.csv));
+  if (!d || !d.rows.length) return false;
+  d.rows.forEach(classify);
+  DATA = d; SRC = src;
+  render();
+  return true;
+}
+
+/* ================== HIỂN THỊ ================== */
+function renderNotices(){
+  const n = [];
+  if (LOAD_ERR) n.push(`<div class="notice err"><span><b>Chưa đọc được dữ liệu từ Google Sheet</b> (${esc(LOAD_ERR)}). Đề nghị kiểm tra: bảng tính đã chia sẻ ở chế độ “Bất kỳ ai có đường liên kết đều có thể xem” và máy đang có kết nối Internet, sau đó bấm “Tải lại dữ liệu”.</span></div>`);
+  if (SRC && SRC.datesLost) n.push(`<div class="notice warn">Đã đọc được dữ liệu nhưng các cột “Ngày ban hành” và “Hạn xử lý” bị trống. Đề nghị định dạng lại hai cột này về cùng một kiểu, hoặc điền SHEET_GID trong phần cấu hình của tệp index.html.</div>`);
+  const bad = DATA ? DATA.rows.filter(r => r.hanLoi) : [];
+  if (bad.length) n.push(`<div class="notice warn">Có ${bad.length} nhiệm vụ ghi hạn xử lý không đọc được ngày cụ thể, đang xếp vào nhóm “Chưa xác định hạn”: ${bad.map(r => `<b>${esc(r.so)}</b> (“${esc(r.hanRaw)}”)`).join("; ")}.</div>`);
+  $("notices").innerHTML = n.join("");
+}
+
+function render(){
+  const units = [...new Set(DATA.rows.map(r => r.dvth))].sort((a,b) => a.localeCompare(b, "vi"));
+  const cur = $("fUnit").value;
+  $("fUnit").innerHTML = `<option value="">Tất cả đơn vị thực hiện</option>` + units.map(u => `<option${u === cur ? " selected" : ""}>${esc(u)}</option>`).join("");
+  $("subline").textContent = `${DATA.period || DATA.title} · Số liệu tính đến ngày ${fmt(today)}` + ` · Cập nhật lúc ${fmtTime(SRC.at)}`;
+  $("footer").textContent = `Trạng thái được tính tự động theo cột “Hạn xử lý” và cột “Kết quả thực hiện”. “Sắp đến hạn”: còn từ 0 đến ${CONFIG.SAP_DEN_HAN_NGAY} ngày.`;
+  renderSummary(); renderNotices();
+  $("loading").hidden = true;
+  route(false);
+}
+
+function renderSummary(){
+  const rows = DATA.rows, n = rows.length;
+  const cnt = s => rows.filter(r => r.status === s).length;
+  const done = cnt("Đã hoàn thành"), over = cnt("Quá hạn"), soon = cnt("Sắp đến hạn"), ok = cnt("Trong hạn"), nodl = cnt("Chưa xác định hạn");
+  const pct = v => n ? Math.round(v * 1000 / n) / 10 : 0;
+
+  $("kpis").innerHTML = [
+    ["total","Tổng số nhiệm vụ", n, "Toàn bộ nhiệm vụ trong bảng", ""],
+    ["done","Đã hoàn thành", done, `Tỷ lệ hoàn thành ${pct(done)}%`, "Đã hoàn thành"],
+    ["over","Quá hạn", over, "Chưa có kết quả, đã qua hạn xử lý", "Quá hạn"],
+    ["soon","Sắp đến hạn", soon, `Còn từ 0 đến ${CONFIG.SAP_DEN_HAN_NGAY} ngày`, "Sắp đến hạn"],
+    ["ok","Trong hạn", ok, `Còn trên ${CONFIG.SAP_DEN_HAN_NGAY} ngày`, "Trong hạn"],
+    ["nodl","Chưa xác định hạn", nodl, "Không ghi hạn xử lý cụ thể", "Chưa xác định hạn"]
+  ].map(([c,l,v,note,f]) => `<button type="button" class="kpi ${c}" data-f="${esc(f)}"><div class="lb">${l}</div><div class="val">${v}</div><div class="note">${note}</div></button>`).join("");
+  document.querySelectorAll(".kpi").forEach(el => el.onclick = () => openDetail(el.dataset.f));
+
+  const parts = [["Đã hoàn thành",done],["Quá hạn",over],["Sắp đến hạn",soon],["Trong hạn",ok],["Chưa xác định hạn",nodl]];
+  $("bar").innerHTML = parts.filter(p => p[1]).map(([s,v]) => `<span title="${s}: ${v}" style="width:${v*100/n}%;background:${STATUS[s].color}"></span>`).join("");
+  $("legend").innerHTML = parts.map(([s,v]) => `<span><i style="background:${STATUS[s].color}"></i>${s}: <b>${v}</b> (${pct(v)}%)</span>`).join("");
+
+  const item = (r, cls, tag) => `<div class="item"><div class="tag ${cls}">${tag}</div><div>
+      <div class="so">${esc(r.so)}</div><div class="ty">${esc(r.trich)}</div>
+      <div class="meta">Đơn vị thực hiện: <b>${esc(r.dvth)}</b> · Đơn vị ban hành: ${esc(r.dvbh || "—")} · Hạn xử lý: <b>${fmt(r.han) || esc(r.hanRaw)}</b>${r.khan && norm(r.khan) !== "thường" ? ` · Độ khẩn: <b style="color:var(--red)">${esc(r.khan)}</b>` : ""}</div>
+    </div></div>`;
+
+  const overL = rows.filter(r => r.status === "Quá hạn").sort((a,b) => a.days - b.days);
+  $("cOver").textContent = overL.length;
+  $("listOver").innerHTML = overL.length ? overL.map(r => item(r, "s-over", `Quá ${-r.days} ngày`)).join("") : `<div class="empty">Không có nhiệm vụ quá hạn.</div>`;
+
+  const soonL = rows.filter(r => r.status === "Sắp đến hạn").sort((a,b) => a.days - b.days);
+  $("cSoon").textContent = soonL.length;
+  $("listSoon").innerHTML = soonL.length ? soonL.map(r => item(r, "s-soon", r.days === 0 ? "Hết hạn hôm nay" : `Còn ${r.days} ngày`)).join("") : `<div class="empty">Không có nhiệm vụ sắp đến hạn trong ${CONFIG.SAP_DEN_HAN_NGAY} ngày tới.</div>`;
+
+  const doneL = rows.filter(r => r.status === "Đã hoàn thành");
+  $("cDone").textContent = doneL.length;
+  $("listDone").innerHTML = doneL.length ? `<div class="tbl-wrap"><table><thead><tr><th>Số ký hiệu</th><th>Trích yếu</th><th>Đơn vị thực hiện</th><th>Hạn xử lý</th><th>Kết quả thực hiện</th></tr></thead><tbody>${
+      doneL.map(r => `<tr><td>${esc(r.so)}</td><td>${esc(r.trich)}</td><td>${esc(r.dvth)}</td><td class="c">${fmt(r.han) || esc(r.hanRaw)}</td><td>${esc(r.ct || r.kq)}</td></tr>`).join("")
+    }</tbody></table></div>` : `<div class="empty">Chưa có nhiệm vụ hoàn thành.</div>`;
+
+  const units = [...new Set(rows.map(r => r.dvth))];
+  const uRows = units.map(u => {
+    const rs = rows.filter(r => r.dvth === u), c = s => rs.filter(r => r.status === s).length;
+    return { u, t: rs.length, d: c("Đã hoàn thành"), o: c("Quá hạn"), s: c("Sắp đến hạn"), k: c("Trong hạn"), x: c("Chưa xác định hạn") };
+  }).sort((a,b) => b.o - a.o || b.s - a.s || b.t - a.t);
+  const z = (v, cls) => v ? `<span class="${cls}">${v}</span>` : "0";
+  $("tblUnit").innerHTML = `<thead><tr><th>Đơn vị thực hiện</th><th>Tổng số</th><th>Đã hoàn thành</th><th>Quá hạn</th><th>Sắp đến hạn</th><th>Trong hạn</th><th>Chưa xác định hạn</th><th>Tỷ lệ hoàn thành</th></tr></thead><tbody>${
+    uRows.map(x => `<tr><td><a href="#chi-tiet" data-u="${esc(x.u)}">${esc(x.u)}</a></td><td class="c">${x.t}</td><td class="c">${z(x.d,"num-done")}</td><td class="c">${z(x.o,"num-over")}</td><td class="c">${z(x.s,"num-soon")}</td><td class="c">${x.k}</td><td class="c">${x.x}</td><td class="c">${Math.round(x.d*1000/x.t)/10}%</td></tr>`).join("")
+  }</tbody>`;
+  $("tblUnit").querySelectorAll("a[data-u]").forEach(a => a.onclick = e => { e.preventDefault(); openDetail("", a.dataset.u); });
+}
+
+function renderDetail(){
+  $("dTitle").textContent = DATA.title;
+  $("dPeriod").textContent = DATA.period;
+  const fS = $("fStatus").value, fU = $("fUnit").value, q = norm($("fSearch").value);
+  const list = DATA.rows.filter(r =>
+    (!fS || r.status === fS) && (!fU || r.dvth === fU) &&
+    (!q || norm([r.so, r.trich, r.dvbh, r.dvth, r.kq, r.ct, r.ghichu].join(" ")).includes(q)));
+  const ct = DATA.hasCt;
+  $("tblDetail").innerHTML = `<thead><tr><th>STT</th><th>Số ký hiệu</th><th>Trích yếu</th><th>Đơn vị ban hành</th><th>Ngày ban hành</th><th>Độ khẩn</th><th>Hạn xử lý</th><th>Đơn vị thực hiện</th><th>Kết quả thực hiện</th>${ct ? "<th>Chi tiết kết quả thực hiện</th>" : ""}<th>Ghi chú</th><th>Trạng thái</th></tr></thead><tbody>${
+    list.map(r => `<tr>
+      <td class="c">${esc(r.stt)}</td><td>${esc(r.so)}</td><td>${esc(r.trich)}</td><td>${esc(r.dvbh)}</td>
+      <td class="c">${fmt(r.ngay) || esc(r.ngayRaw)}</td><td class="c">${esc(r.khan)}</td>
+      <td class="c">${fmt(r.han) || esc(r.hanRaw)}${r.status === "Quá hạn" ? `<br><small class="num-over">quá ${-r.days} ngày</small>` : r.status === "Sắp đến hạn" ? `<br><small class="num-soon">${r.days === 0 ? "hết hạn hôm nay" : "còn " + r.days + " ngày"}</small>` : ""}</td>
+      <td>${esc(r.dvth)}</td><td>${esc(r.kq)}</td>${ct ? `<td>${esc(r.ct)}</td>` : ""}<td>${esc(r.ghichu)}</td><td class="c">${badge(r.status)}</td>
+    </tr>`).join("") || `<tr><td colspan="${ct ? 12 : 11}" class="c empty">Không có nhiệm vụ phù hợp điều kiện lọc.</td></tr>`
+  }</tbody>`;
+  $("dCount").textContent = `Hiển thị ${list.length}/${DATA.rows.length} nhiệm vụ.`;
+}
+
+function openDetail(status = "", unit = ""){
+  $("fStatus").value = status; $("fUnit").value = unit; $("fSearch").value = "";
+  if (location.hash === "#chi-tiet") renderDetail(); else location.hash = "chi-tiet";
+}
+function route(scroll = true){
+  if (!DATA) return;
+  const detail = location.hash === "#chi-tiet";
+  $("viewSummary").hidden = detail;
+  $("viewDetail").hidden = !detail;
+  if (detail) renderDetail();
+  if (scroll) window.scrollTo(0, 0);
+}
+
+async function init(){
+  $("btnReload").disabled = true;
+  try { LOAD_ERR = ""; useSource(await loadSheet()); }
+  catch(e){ LOAD_ERR = e.message || "lỗi kết nối"; if (!DATA) $("loading").hidden = true; renderNotices(); }
+  $("btnReload").disabled = false;
+}
+
+$("btnReload").onclick = init;
+["fStatus","fUnit"].forEach(id => $(id).onchange = renderDetail);
+$("fSearch").oninput = renderDetail;
+window.addEventListener("hashchange", () => route(true));
+init();
+</script>
+</body>
+</html>
