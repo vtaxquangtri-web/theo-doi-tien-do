@@ -108,6 +108,39 @@
   .grp-row td{background:var(--th);color:var(--th-text);font-weight:700;text-transform:uppercase;font-size:13.5px;letter-spacing:.02em}
   .grp-row td .grp-meta{font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted);margin-left:8px}
   .chip{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--gray-bg);color:var(--gray);margin-left:6px;vertical-align:1px}
+
+  /* ===== Giao diện điện thoại: bảng chuyển thành thẻ, không phải kéo ngang (máy tính giữ nguyên) ===== */
+  @media (max-width:760px){
+    .tbl-wrap{max-height:none;overflow:visible}
+    .toolbar select{flex:1 1 100%}
+    .toolbar .btn.light{flex:1 1 100%;justify-content:center}
+    .panel{padding:14px 12px}
+    table.rt, table.rt tbody, table.rt tr, table.rt td{display:block;width:100%}
+    table.rt thead{display:none}
+    table.rt tbody{display:flex;flex-direction:column;gap:10px}
+    table.rt tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--card)}
+    table.rt tbody tr:nth-child(even){background:var(--card)}
+    table.rt td{border:0;padding:0;grid-column:1 / -1;display:grid;grid-template-columns:38% minmax(0,1fr);gap:8px;text-align:left;overflow-wrap:anywhere}
+    table.rt td::before{content:attr(data-label);color:var(--muted);font-size:12.5px;font-weight:600}
+    table.rt td.rt-blank, table.rt td.rt-hide{display:none}
+    table.rt td.rt-title{grid-column:1;display:block;font-weight:700;font-size:15px}
+    table.rt td.rt-status{grid-column:2;grid-row:1;display:block;text-align:right}
+    table.rt td.rt-sub{display:block}
+    table.rt td.rt-title::before, table.rt td.rt-status::before, table.rt td.rt-sub::before{display:none}
+    table.rt tr.rt-full{display:block}
+    table.rt tr.rt-full td{display:block}
+    table.rt tr.rt-full td::before{display:none}
+    table.rt tr.grp-row{background:var(--th);border-color:var(--th);margin-top:6px}
+    table.rt tr.grp-row td{background:transparent}
+    .grp-row td .grp-meta{display:block;margin:4px 0 0}
+    table.rt tr.rt-full:not(.grp-row){border-style:dashed}
+    /* Bảng thống kê: mỗi dòng là một thẻ, các chỉ số xếp 3 cột */
+    table.rt.stat tr{grid-template-columns:repeat(3,minmax(0,1fr))}
+    table.rt.stat td{grid-column:auto;display:flex;flex-direction:column;gap:0}
+    table.rt.stat td::before{font-size:11.5px;font-weight:500}
+    table.rt.stat td .v{font-size:16px;font-weight:600}
+    table.rt.stat td.rt-title{grid-column:1 / -1}
+  }
 </style>
 </head>
 <body>
@@ -447,6 +480,31 @@ function renderSummary(){
     uRows.map(x => `<tr><td><a href="#chi-tiet" data-u="${esc(x.u)}">${esc(x.u)}</a></td>${statCells(x)}</tr>`).join("") || `<tr><td colspan="8" class="c empty">Chưa có dữ liệu.</td></tr>`
   }</tbody>`;
   $("tblUnit").querySelectorAll("a[data-u]").forEach(a => a.onclick = e => { e.preventDefault(); openDetail({ unit: a.dataset.u }); });
+  mobilize($("tblGroup"), "stat");
+  mobilize($("tblUnit"), "stat");
+  mobilize($("listDone").querySelector("table"), "list");
+}
+
+/* Gắn nhãn cột cho từng ô để trên điện thoại hiển thị dạng thẻ (không ảnh hưởng giao diện máy tính) */
+function mobilize(table, kind){
+  if (!table) return;
+  table.classList.add("rt", kind);
+  const heads = [...table.querySelectorAll("thead th")].map(th => th.textContent.trim());
+  const titleIdx = heads.includes("Số ký hiệu") ? heads.indexOf("Số ký hiệu") : 0;
+  table.querySelectorAll("tbody tr").forEach(tr => {
+    const tds = [...tr.children];
+    if (tds.length === 1){ tr.classList.add("rt-full"); return; }
+    tds.forEach((td, i) => {
+      const h = heads[i] || "";
+      td.setAttribute("data-label", h);
+      if (i === titleIdx){ td.classList.add("rt-title"); return; }
+      if (h === "Trạng thái") td.classList.add("rt-status");
+      else if (h === "Trích yếu") td.classList.add("rt-sub");
+      else if (h === "STT") td.classList.add("rt-hide");
+      if (!td.textContent.trim()) td.classList.add("rt-blank");
+      td.innerHTML = `<span class="v">${td.innerHTML}</span>`;
+    });
+  });
 }
 
 function renderDetail(){
@@ -470,6 +528,7 @@ function renderDetail(){
   });
   $("tblDetail").innerHTML = `<thead><tr><th>STT</th><th>Số ký hiệu</th><th>Trích yếu</th><th>Đơn vị ban hành</th><th>Ngày ban hành</th><th>Độ khẩn</th><th>Hạn xử lý</th><th>Đơn vị thực hiện</th><th>Kết quả thực hiện</th>${ct ? "<th>Chi tiết kết quả thực hiện</th>" : ""}<th>Ghi chú</th><th>Trạng thái</th></tr></thead><tbody>${body}</tbody>`;
   $("dCount").textContent = `Hiển thị ${shown}/${DATA.rows.length} nhiệm vụ.`;
+  mobilize($("tblDetail"), "list");
 }
 
 function openDetail({ group = "", status = "", unit = "" } = {}){
