@@ -99,9 +99,6 @@
   .sheet-period{text-align:center;margin:0 0 14px;font-style:italic;color:var(--muted)}
   .loading{padding:60px 0;text-align:center;color:var(--muted)}
   footer{text-align:center;color:var(--muted);font-size:12px;padding-block:10px}
-  .visits{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:center}
-  .visits .vl{font-size:13px;color:var(--muted);font-weight:600}
-  .visits .vv{font-size:26px;font-weight:700;color:var(--brand);font-variant-numeric:tabular-nums}
   @media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
   @media (max-width:760px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid2{grid-template-columns:1fr}}
   @media (prefers-reduced-motion:reduce){.kpi{transition:none}.kpi:hover{transform:none}}
@@ -220,13 +217,6 @@
   </section>
 
   <div id="notices"></div>
-
-  <div class="panel">
-    <h2>Thống kê truy cập</h2>
-    <div class="visits">
-      <div><div class="vl">Tổng số lượt truy cập</div><div class="vv" id="visitTotal">…</div></div>
-    </div>
-  </div>
 </main>
 <footer class="wrap" id="footer"></footer>
 
@@ -242,10 +232,7 @@ const CONFIG = {
     { name: "Nhiệm vụ do UBND xã giao",     sheet: "NV UBND Xã",  gid: "845425024" },
     { name: "Nhiệm vụ do Đảng ủy xã giao",  sheet: "NV Đảng ủy",  gid: "239570416" }
   ],
-  SAP_DEN_HAN_NGAY: 2,  // còn từ 0 đến 2 ngày thì tính là "Sắp đến hạn"
-  /* Bộ đếm lượt truy cập (dịch vụ miễn phí abacus.jasoncameron.dev).
-     Mỗi lần mở trình duyệt chỉ tính 1 lượt, bấm tải lại trang không tính thêm. */
-  COUNTER: { ns: "ubnd-benhai-tiendo", key: "luot-truy-cap" }
+  SAP_DEN_HAN_NGAY: 2   // còn từ 0 đến 2 ngày thì tính là "Sắp đến hạn"
 };
 const ROMAN = ["I","II","III","IV","V","VI","VII","VIII","IX","X"];
 
@@ -411,22 +398,6 @@ async function loadAll(){
   return { groups, rows, errors, datesLost, hasCt: groups.some(g => g.hasCt) };
 }
 
-/* ================== THỐNG KÊ TRUY CẬP ================== */
-async function loadVisits(){
-  const { ns, key } = CONFIG.COUNTER;
-  let counted = false;
-  try { counted = sessionStorage.getItem("daTinhLuot") === "1"; } catch(_){}
-  try {
-    const res = await fetch(`https://abacus.jasoncameron.dev/${counted ? "get" : "hit"}/${ns}/${key}`, { cache: "no-store" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const { value } = await res.json();
-    if (!counted) try { sessionStorage.setItem("daTinhLuot", "1"); } catch(_){}
-    $("visitTotal").textContent = Number(value).toLocaleString("vi-VN");
-  } catch(_){
-    $("visitTotal").textContent = "Chưa kết nối được";
-  }
-}
-
 /* ================== HIỂN THỊ ================== */
 function renderNotices(){
   const n = [];
@@ -588,7 +559,6 @@ $("btnReload").onclick = init;
 $("fSearch").oninput = renderDetail;
 window.addEventListener("hashchange", () => route(true));
 init();
-loadVisits();
 </script>
 </body>
 </html>
