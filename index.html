@@ -6,7 +6,7 @@
 <title>Theo dõi tiến độ công việc UBND xã Bến Hải</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
 <style>
-  /* Bố cục: dải tiêu đề màu chủ đạo → ô số liệu → hai cột quá hạn / sắp đến hạn → bảng theo đơn vị → đã hoàn thành */
+  /* Bố cục: dải tiêu đề màu chủ đạo → ô số liệu → hai cột quá hạn / sắp đến hạn → bảng theo đơn vị → nút xuất báo cáo */
   :root{
     --bg:#f2f4f8; --card:#ffffff; --text:#1b2333; --muted:#5d6879; --line:#dfe4ee; --th:#eaf0fa; --th-text:#123a6b; --zebra:#f9fafc;
     --brand:#0b4ea2; --brand-dark:#083a7a; --on-brand:#ffffff;
@@ -106,6 +106,18 @@
 <style>
   .grp-row td{background:var(--th);color:var(--th-text);font-weight:700;text-transform:uppercase;font-size:13.5px;letter-spacing:.02em}
   .grp-row td .grp-meta{font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted);margin-left:8px}
+  .export-bar{display:flex;justify-content:center;padding:8px 0 4px}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:var(--on-brand);font-weight:600;padding:10px 22px}
+  .btn.primary:hover{background:var(--brand-dark)}
+  .btn:disabled{opacity:.6;cursor:wait}
+  dialog{border:1px solid var(--line);border-radius:12px;padding:20px;background:var(--card);color:var(--text);width:min(440px,calc(100vw - 32px));font-family:var(--font)}
+  dialog::backdrop{background:rgba(0,0,0,.45)}
+  dialog h3{margin:0 0 14px;font-size:17px}
+  dialog label{display:block;font-weight:600;font-size:14px;margin-bottom:6px}
+  dialog input[type=date],dialog input[type=file]{font-family:inherit;font-size:15px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);width:100%}
+  dialog .hint{font-size:13px;color:var(--muted);margin:10px 0}
+  dialog .warn-text{color:var(--amber)} dialog .err-text{color:var(--red)}
+  .dlg-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
   .chip{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--gray-bg);color:var(--gray);margin-left:6px;vertical-align:1px}
 
   /* ===== Giao diện điện thoại: bảng chuyển thành thẻ, không phải kéo ngang (máy tính giữ nguyên) ===== */
@@ -187,10 +199,6 @@
       <h2>Tình hình thực hiện theo đơn vị</h2>
       <div class="tbl-wrap"><table id="tblUnit"></table></div>
     </div>
-    <div class="panel">
-      <h2>Nhiệm vụ đã hoàn thành <span class="count s-done" id="cDone"></span></h2>
-      <div id="listDone"></div>
-    </div>
   </section>
 
   <section id="viewDetail" hidden>
@@ -217,9 +225,32 @@
   </section>
 
   <div id="notices"></div>
+
+  <div class="export-bar" id="exportBar" hidden>
+    <button class="btn primary" id="btnExport" type="button">Xuất báo cáo</button>
+  </div>
 </main>
+
+<dialog id="dlgExport" aria-labelledby="dlgTitle">
+  <form method="dialog" id="frmExport">
+    <h3 id="dlgTitle">Xuất báo cáo tiến độ công việc</h3>
+    <label for="rptDate">Ngày báo cáo</label>
+    <input type="date" id="rptDate" required>
+    <p class="hint">Trạng thái nhiệm vụ (quá hạn, sắp đến hạn, trong hạn) được tính theo ngày báo cáo đã chọn. Báo cáo lập theo tệp “mẫu báo cáo tiến độ.docx”, chỉ thay số liệu.</p>
+    <div id="tplPick" hidden>
+      <p class="hint warn-text">Không tự đọc được tệp “mẫu báo cáo tiến độ.docx” (trang đang mở trực tiếp, không qua Chay_web.bat). Đề nghị chọn tệp mẫu:</p>
+      <input type="file" id="tplFile" accept=".docx">
+    </div>
+    <p class="hint err-text" id="dlgMsg" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn light" type="button" id="btnCancel">Hủy</button>
+      <button class="btn primary" type="submit" id="btnDoExport">Xuất báo cáo</button>
+    </div>
+  </form>
+</dialog>
 <footer class="wrap" id="footer"></footer>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 /* ================== CẤU HÌNH ================== */
 const CONFIG = {
@@ -421,6 +452,7 @@ function render(){
   $("footer").textContent = `Trạng thái được tính tự động theo cột “Hạn xử lý” và cột “Kết quả thực hiện”. “Sắp đến hạn”: còn từ 0 đến ${CONFIG.SAP_DEN_HAN_NGAY} ngày.`;
   renderSummary(); renderNotices();
   $("loading").hidden = true;
+  $("exportBar").hidden = false;
   route(false);
 }
 
@@ -467,12 +499,6 @@ function renderSummary(){
   $("cSoon").textContent = soonL.length;
   $("listSoon").innerHTML = soonL.length ? soonL.map(r => item(r, "s-soon", r.days === 0 ? "Hết hạn hôm nay" : `Còn ${r.days} ngày`)).join("") : `<div class="empty">Không có nhiệm vụ sắp đến hạn trong ${CONFIG.SAP_DEN_HAN_NGAY} ngày tới.</div>`;
 
-  const doneL = rows.filter(r => r.status === "Đã hoàn thành");
-  $("cDone").textContent = doneL.length;
-  $("listDone").innerHTML = doneL.length ? `<div class="tbl-wrap"><table><thead><tr><th>Nhóm nhiệm vụ</th><th>Số ký hiệu</th><th>Trích yếu</th><th>Đơn vị thực hiện</th><th>Hạn xử lý</th><th>Chi tiết kết quả thực hiện</th></tr></thead><tbody>${
-      doneL.map(r => `<tr><td>${esc(r.group)}</td><td>${esc(r.so)}</td><td>${esc(r.trich)}</td><td>${esc(r.dvth)}</td><td class="c">${fmt(r.han) || esc(r.hanRaw)}</td><td>${esc(r.ct)}</td></tr>`).join("")
-    }</tbody></table></div>` : `<div class="empty">Chưa có nhiệm vụ hoàn thành.</div>`;
-
   // Theo đơn vị
   const units = [...new Set(rows.map(r => r.dvth))];
   const uRows = units.map(u => ({ u, ...countBy(rows.filter(r => r.dvth === u)) })).sort((a,b) => b.o - a.o || b.s - a.s || b.t - a.t);
@@ -482,7 +508,6 @@ function renderSummary(){
   $("tblUnit").querySelectorAll("a[data-u]").forEach(a => a.onclick = e => { e.preventDefault(); openDetail({ unit: a.dataset.u }); });
   mobilize($("tblGroup"), "stat");
   mobilize($("tblUnit"), "stat");
-  mobilize($("listDone").querySelector("table"), "list");
 }
 
 /* Gắn nhãn cột cho từng ô để trên điện thoại hiển thị dạng thẻ (không ảnh hưởng giao diện máy tính) */
@@ -553,7 +578,200 @@ async function init(){
   $("btnReload").disabled = false;
 }
 
-$("btnSheet").href = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/edit`;
+/* ================== XUẤT BÁO CÁO (WORD) ================== */
+/* Báo cáo lập từ tệp "mẫu báo cáo tiến độ.docx" cùng thư mục: lời văn, bố cục giữ nguyên như trong mẫu,
+   chỉ thay các ô số liệu viết trong ngoặc nhọn, ví dụ {tong_so}, {ty_le}, {ngay_bao_cao}.
+   Có thể mở tệp mẫu bằng Word để sửa lời văn; giữ nguyên các ô trong ngoặc nhọn.
+   - Ô chung: {ngay} {thang} {nam} {ngay_bao_cao} {tong_so} {da_ht} {ty_le} {chua_ht} {qua_han} {sap_han}
+              {trong_han} {chua_xd} {so_ngay_sap_han} {dv_qua_han}
+   - Dòng lặp (đoạn văn hoặc dòng bảng chứa ô có tiền tố, được nhân lên theo từng mục):
+       {n.*} nhóm nhiệm vụ: stt so_la_ma ten tong ht ty_le chua_ht qua_han sap_han trong_han chua_xd
+       {d.*} đơn vị thực hiện: stt ten tong ht ty_le chua_ht qua_han sap_han trong_han chua_xd
+       {q.*} nhiệm vụ quá hạn, {s.*} nhiệm vụ sắp đến hạn: stt so trich_yeu don_vi nhom han con_lai */
+const TEMPLATE_FILE = "mẫu báo cáo tiến độ.docx";
+let TEMPLATE_BUF = null;
+
+async function loadTemplate(){
+  if (TEMPLATE_BUF) return TEMPLATE_BUF;
+  const res = await fetch(encodeURI(TEMPLATE_FILE), { cache: "no-store" });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return (TEMPLATE_BUF = await res.arrayBuffer());
+}
+
+/* Trạng thái tính theo ngày báo cáo */
+function statusAt(r, ref){
+  if (r.status === "Đã hoàn thành") return { status: r.status, days: null };
+  if (!r.han) return { status: "Chưa xác định hạn", days: null };
+  const days = Math.round((r.han - ref) / DAY);
+  return { status: days < 0 ? "Quá hạn" : (days <= CONFIG.SAP_DEN_HAN_NGAY ? "Sắp đến hạn" : "Trong hạn"), days };
+}
+
+/* Số liệu điền vào mẫu */
+function reportData(ref){
+  const rows = DATA.rows.map(r => ({ ...r, ...statusAt(r, ref) }));
+  const pc = (v, t) => t ? String(Math.round(v * 1000 / t) / 10).replace(".", ",") + "%" : "0%";
+  const stat = rs => {
+    const c = s => rs.filter(r => r.status === s).length;
+    const t = rs.length, ht = c("Đã hoàn thành");
+    return { tong: t, ht, ty_le: pc(ht, t), chua_ht: t - ht, qua_han: c("Quá hạn"), sap_han: c("Sắp đến hạn"), trong_han: c("Trong hạn"), chua_xd: c("Chưa xác định hạn") };
+  };
+  const all = stat(rows);
+  const units = [...new Set(rows.map(r => r.dvth))]
+    .map(u => ({ ten: u, ...stat(rows.filter(r => r.dvth === u)) }))
+    .sort((a, b) => b.qua_han - a.qua_han || b.sap_han - a.sap_han || b.tong - a.tong);
+  const task = (r, i, conLai) => ({ stt: i + 1, so: r.so, trich_yeu: r.trich, don_vi: r.dvth, nhom: r.group, han: fmt(r.han) || r.hanRaw, con_lai: conLai(r) });
+  const byGroupThenDays = (a, b) => a.gIdx - b.gIdx || a.days - b.days;
+  const p2 = n => String(n).padStart(2, "0");
+  return {
+    vars: {
+      ngay: p2(ref.getDate()), thang: p2(ref.getMonth() + 1), nam: ref.getFullYear(), ngay_bao_cao: fmt(ref),
+      tong_so: all.tong, da_ht: all.ht, ty_le: all.ty_le, chua_ht: all.chua_ht, qua_han: all.qua_han, sap_han: all.sap_han,
+      trong_han: all.trong_han, chua_xd: all.chua_xd, so_ngay_sap_han: CONFIG.SAP_DEN_HAN_NGAY,
+      dv_qua_han: units.filter(u => u.qua_han).map(u => `${u.ten} (${u.qua_han} nhiệm vụ)`).join("; ") || "không có"
+    },
+    loops: {
+      n: DATA.groups.map((g, i) => ({ stt: i + 1, so_la_ma: ROMAN[i], ten: g.name, ...stat(rows.filter(r => r.gIdx === i)) })),
+      d: units.map((u, i) => ({ stt: i + 1, ...u })),
+      q: rows.filter(r => r.status === "Quá hạn").sort(byGroupThenDays).map((r, i) => task(r, i, r => `${-r.days} ngày`)),
+      s: rows.filter(r => r.status === "Sắp đến hạn").sort(byGroupThenDays).map((r, i) => task(r, i, r => r.days === 0 ? "Hết hạn trong ngày" : `Còn ${r.days} ngày`))
+    },
+    // Khi danh sách trống, dòng bảng hiện một dòng "Không có"
+    empty: {
+      q: { stt: "", so: "", trich_yeu: "Không có nhiệm vụ quá hạn", don_vi: "", nhom: "", han: "", con_lai: "" },
+      s: { stt: "", so: "", trich_yeu: "Không có nhiệm vụ sắp đến hạn", don_vi: "", nhom: "", han: "", con_lai: "" }
+    }
+  };
+}
+
+/* --- Điền số liệu vào tệp mẫu --- */
+const W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+const PH = /\{([a-z]\.)?[a-z_]+\}/g;
+
+/* Word hay tách một ô {…} thành nhiều đoạn chữ nhỏ khi sửa tệp: gom lại về một chỗ */
+function mergePlaceholders(doc){
+  for (const p of doc.getElementsByTagNameNS(W_NS, "p")){
+    const ts = [...p.getElementsByTagNameNS(W_NS, "t")];
+    if (ts.length < 2) continue;
+    const full = ts.map(t => t.textContent).join("");
+    if (!full.includes("{")) continue;
+    const starts = []; let pos = 0;
+    ts.forEach(t => { starts.push(pos); pos += t.textContent.length; });
+    const nodeAt = off => { let i = starts.length - 1; while (i > 0 && starts[i] > off) i--; return i; };
+    const ms = [...full.matchAll(PH)].reverse();
+    for (const m of ms){
+      const a = nodeAt(m.index), b = nodeAt(m.index + m[0].length - 1);
+      if (a === b) continue;
+      const ta = ts[a], tb = ts[b];
+      ta.textContent = ta.textContent.slice(0, m.index - starts[a]) + m[0];
+      for (let k = a + 1; k < b; k++) ts[k].textContent = "";
+      tb.textContent = tb.textContent.slice(m.index + m[0].length - starts[b]);
+      [ta, tb].forEach(t => t.setAttributeNS("http://www.w3.org/XML/1998/namespace", "xml:space", "preserve"));
+    }
+  }
+}
+const fillText = (node, get) => {
+  for (const t of node.getElementsByTagNameNS(W_NS, "t")){
+    const s = t.textContent;
+    if (s.includes("{")) t.textContent = s.replace(PH, k => { const v = get(k.slice(1, -1)); return v === undefined ? k : String(v ?? ""); });
+  }
+};
+function fillTemplateXml(xml, data){
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  if (doc.getElementsByTagName("parsererror").length) throw new Error("tệp mẫu bị lỗi định dạng");
+  mergePlaceholders(doc);
+  for (const [pre, items] of Object.entries(data.loops)){
+    const tag = `{${pre}.`;
+    const hosts = [];
+    for (const el of [...doc.getElementsByTagNameNS(W_NS, "tr"), ...doc.getElementsByTagNameNS(W_NS, "p")]){
+      if (!el.textContent.includes(tag)) continue;
+      if (hosts.some(h => h.contains(el))) continue;      // đoạn văn nằm trong dòng bảng đã xử lý
+      hosts.push(el);
+    }
+    for (const host of hosts){
+      const isRow = host.localName === "tr";
+      const list = items.length ? items : (isRow && data.empty[pre] ? [data.empty[pre]] : []);
+      for (const it of list){
+        const c = host.cloneNode(true);
+        fillText(c, k => k.startsWith(pre + ".") ? it[k.slice(pre.length + 1)] : undefined);
+        host.parentNode.insertBefore(c, host);
+      }
+      host.parentNode.removeChild(host);
+    }
+  }
+  fillText(doc, k => data.vars[k]);
+  let out = new XMLSerializer().serializeToString(doc);
+  if (!out.startsWith("<?xml")) out = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + out;
+  return out;
+}
+
+async function buildDocx(templateBuf, ref){
+  const zip = await JSZip.loadAsync(templateBuf);
+  const f = zip.file("word/document.xml");
+  if (!f) throw new Error("tệp mẫu không phải tệp Word (.docx)");
+  zip.file("word/document.xml", fillTemplateXml(await f.async("string"), reportData(ref)));
+  return zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", compression: "DEFLATE" });
+}
+
+function downloadBlob(name, blob){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+const toISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const dlgMsg = (t, ok) => { $("dlgMsg").hidden = !t; $("dlgMsg").textContent = t || ""; $("dlgMsg").className = "hint " + (ok ? "" : "err-text"); };
+
+$("btnExport").onclick = () => {
+  $("rptDate").value = toISO(today);
+  dlgMsg("");
+  $("btnDoExport").disabled = false;
+  $("dlgExport").showModal();
+  loadTemplate().then(() => { $("tplPick").hidden = true; }).catch(() => { if (!TEMPLATE_BUF) $("tplPick").hidden = false; });
+};
+$("btnCancel").onclick = () => $("dlgExport").close();
+$("tplFile").onchange = async e => { const f = e.target.files[0]; if (f){ TEMPLATE_BUF = await f.arrayBuffer(); dlgMsg(""); } };
+
+$("frmExport").onsubmit = async e => {
+  e.preventDefault();
+  const v = $("rptDate").value;
+  if (!v){ dlgMsg("Đề nghị chọn ngày báo cáo."); return; }
+  if (!TEMPLATE_BUF){ dlgMsg(`Chưa có tệp mẫu báo cáo. Đề nghị chọn tệp “${TEMPLATE_FILE}”.`); $("tplPick").hidden = false; return; }
+  if (typeof JSZip === "undefined"){ dlgMsg("Chưa tải được thư viện tạo tệp Word (cần kết nối Internet). Đề nghị tải lại trang."); return; }
+  const [y, m, d] = v.split("-").map(Number);
+  const ref = new Date(y, m - 1, d);
+  const fileName = `Báo cáo tiến độ công việc ngày ${String(d).padStart(2,"0")}-${String(m).padStart(2,"0")}-${y}.docx`;
+
+  // Hộp thoại "Lưu thành" của Windows: chọn thư mục bất kỳ (Desktop, Documents…) và đặt tên tệp.
+  // Phải mở ngay khi bấm nút vì trình duyệt chỉ cho mở hộp thoại khi người dùng vừa thao tác.
+  let handle = null;
+  if (window.showSaveFilePicker){
+    try {
+      handle = await window.showSaveFilePicker({
+        id: "bao-cao", startIn: "documents", suggestedName: fileName,
+        types: [{ description: "Tài liệu Word", accept: { "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"] } }]
+      });
+    } catch(err){ if (err.name === "AbortError") return; handle = null; }
+  }
+  $("btnDoExport").disabled = true;
+  dlgMsg("Đang tạo báo cáo...", true);
+  try {
+    const blob = await buildDocx(TEMPLATE_BUF, ref);
+    if (handle){
+      const w = await handle.createWritable();
+      await w.write(blob); await w.close();
+      $("dlgExport").close();
+      alert(`Đã lưu báo cáo “${handle.name}”.`);
+    } else {
+      downloadBlob(fileName, blob);   // trình duyệt không hỗ trợ hộp thoại lưu: tải về thư mục Tải xuống
+      $("dlgExport").close();
+    }
+  } catch(err){
+    dlgMsg("Không tạo được báo cáo: " + (err.message || err) + (err.name === "NoModificationAllowedError" ? " (tệp đang mở trong Word, đề nghị đóng tệp rồi thử lại)" : ""));
+  } finally { $("btnDoExport").disabled = false; }
+};
+
+$("btnSheet").href =`https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/edit`;
 $("btnReload").onclick = init;
 ["fGroup","fStatus","fUnit"].forEach(id => $(id).onchange = renderDetail);
 $("fSearch").oninput = renderDetail;
